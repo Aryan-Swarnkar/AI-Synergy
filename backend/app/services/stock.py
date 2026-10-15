@@ -115,6 +115,15 @@ def audit(db, *, centre_id: int, product: str, counted_qty: int,
                             today=today, cfg=cfg or None)
         res["notification"] = ("Your centre reported less stock; "
                                f"we moved your token ({c['code']} cancelled).")
+        if res.get("outcome") == "ISSUED":
+            from .tokens import _prov  # local import: stock already imports tokens
+            nt = db.query(Token).filter(
+                Token.code == res.get("token_code")).first()
+            if nt is not None:
+                _prov(db, token_id=nt.id, request_id=nt.request_id,
+                      step="reassigned", actor_type="RULE", actor="rule engine",
+                      detail={"from_token": c["code"]})
+                db.commit()
         reassigned.append(res)
     return {"ok": True, "delta": delta_out,
             "cancelled": cancelled, "reassigned": reassigned}

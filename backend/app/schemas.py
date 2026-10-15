@@ -49,6 +49,7 @@ class RequestIn(BaseModel):
     qty: int
     sowing_date: str
     idempotency_key: str
+    provenance: dict | None = None  # v3: {ai_proposal, confirmed_edits}
 
 
 class VerifierDecideIn(BaseModel):

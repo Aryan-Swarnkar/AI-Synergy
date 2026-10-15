@@ -20,9 +20,33 @@ from ..core.allocator import decide
 from ..core.norms import entitlement
 from ..core.types import CentreState, FarmerRequest
 from ..db import immediate_txn
-from ..models import AuditEvent, Centre, Farmer, Request, StockLedger, StockLot, StockPool, Token, Village, WaitlistEntry
+from ..models import AuditEvent, Centre, Farmer, ProvenanceEvent, Request, StockLedger, StockLot, StockPool, Token, Village, WaitlistEntry
 
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0O1I
+
+
+def _prov(s, *, token_id: int | None, request_id: int, step: str,
+          actor_type: str, actor: str = "", detail: dict | None = None) -> None:
+    """Append one decision-provenance row (v3). Additive: never alters stock."""
+    s.add(ProvenanceEvent(token_id=token_id, request_id=request_id, step=step,
+                          actor_type=actor_type, actor_name=actor,
+                          detail=detail or {}, ts=_utcnow()))
+
+
+def _write_proposal(s, provenance: dict | None, farmer, *, request_id: int,
+                    token_id: int | None) -> None:
+    """AI-1 proposal + HUMAN confirm rows (v3). No-op without a proposal payload."""
+    if not provenance:
+        return
+    ai = provenance.get("ai_proposal") or {}
+    _prov(s, token_id=token_id, request_id=request_id, step="intake_proposed",
+          actor_type="AI", actor="AI-1 intake",
+          detail={"confidence": ai.get("confidence"), "parser": ai.get("parser"),
+                  "fields": {k: ai.get(k) for k in
+                             ("product", "crop", "acres", "sowing_date", "qty")}})
+    _prov(s, token_id=token_id, request_id=request_id, step="farmer_confirmed",
+          actor_type="HUMAN", actor=farmer.name if farmer else "",
+          detail={"edits": provenance.get("confirmed_edits") or {}})
 
 
 def _utcnow() -> datetime:
@@ -83,8 +107,13 @@ def _seasonal_remaining(db, farmer: Farmer, product: str, crop: str, acres: floa
 
 def request_token(db, *, farmer_id: int, product: str, crop: str, acres: float,
                   qty: int, sowing_date: str, idempotency_key: str,
-                  today: str, cfg: dict | None = None) -> dict:
-    """Main entry: idempotent reserve-or-waitlist-or-reject. Returns JSON-able dict."""
+                  today: str, cfg: dict | None = None,
+                  provenance: dict | None = None) -> dict:
+    """Main entry: idempotent reserve-or-waitlist-or-reject. Returns JSON-able dict.
+
+    provenance (optional, v3): {"ai_proposal": {...}, "confirmed_edits": {...}}
+    records the AI-1 proposal + HUMAN confirm steps on the new request.
+    """
     cfg = cfg or default_config.get_config()
 
     # ---- Idempotency: same key returns original result, never a second token ----
@@ -136,6 +165,11 @@ def request_token(db, *, farmer_id: int, product: str, crop: str, acres: float,
                         reason=f"{decision.reason_code}: {decision.reason_text_en}",
                         idempotency_key=idempotency_key)
             s.add(r)
+            s.flush()
+            _write_proposal(s, provenance, farmer, request_id=r.id, token_id=None)
+            _prov(s, token_id=None, request_id=r.id, step="validated",
+                  actor_type="RULE", actor="rule engine",
+                  detail={"reason_code": decision.reason_code})
         return {"outcome": "REJECTED", "request_id": r.id, "reason_code": decision.reason_code,
                 "reason_en": decision.reason_text_en, "reason_hi": decision.reason_text_hi}
 
@@ -159,6 +193,10 @@ def request_token(db, *, farmer_id: int, product: str, crop: str, acres: float,
             s.add(AuditEvent(actor_role="SYSTEM", actor_id="allocator", action="WAITLIST",
                              entity="request", entity_id=str(r.id),
                              detail={"reason": decision.reason_code}))
+            _write_proposal(s, provenance, farmer, request_id=r.id, token_id=None)
+            _prov(s, token_id=None, request_id=r.id, step="validated",
+                  actor_type="RULE", actor="rule engine",
+                  detail={"reason_code": decision.reason_code})
         return {"outcome": "WAITLISTED", "request_id": r.id, "eta_date": decision.eta_date,
                 "at_risk": decision.at_risk, "reason_code": decision.reason_code,
                 "reason_en": decision.reason_text_en, "reason_hi": decision.reason_text_hi}
@@ -170,13 +208,14 @@ def request_token(db, *, farmer_id: int, product: str, crop: str, acres: float,
                            idempotency_key=idempotency_key, today=today, cfg=cfg,
                            centre_id=decision.centre_id, pickup_date=decision.pickup_date,
                            urgent=decision.urgent, reason_code=decision.reason_code,
-                           reason_en=decision.reason_text_en)
+                           reason_en=decision.reason_text_en, provenance=provenance)
 
 
 def _reserve_issued(db, *, farmer_id: int, product: str, crop: str, acres: float,
                     qty: int, sowing_date: str, idempotency_key: str, today: str,
                     cfg: dict, centre_id: int, pickup_date: str,
-                    urgent: bool, reason_code: str, reason_en: str) -> dict:
+                    urgent: bool, reason_code: str, reason_en: str,
+                    provenance: dict | None = None) -> dict:
     """Try the allocator's chosen (centre, date) atomically; on a lost race,
     re-run the allocator ONCE with fresh state (new txn, no nesting)."""
     blocks: list[str] = cfg.get("SLOT_BLOCKS", ["08-10"])
@@ -251,6 +290,11 @@ def _reserve_issued(db, *, farmer_id: int, product: str, crop: str, acres: float
                                     priority_score=f"{sowing_date}|{acres}|{r.created_at}",
                                     eta_date=retry_decision.eta_date, at_risk=True,
                                     status="WAITING"))
+                farmer_r = s.get(Farmer, farmer_id)
+                _write_proposal(s, provenance, farmer_r, request_id=r.id, token_id=None)
+                _prov(s, token_id=None, request_id=r.id, step="validated",
+                      actor_type="RULE", actor="rule engine",
+                      detail={"reason_code": "RETRY_STATE_CHANGED"})
                 return {"outcome": "WAITLISTED", "request_id": r.id,
                         "eta_date": retry_decision.eta_date,
                         "at_risk": True, "reason_code": "RETRY_STATE_CHANGED"}
@@ -293,6 +337,16 @@ def _reserve_issued(db, *, farmer_id: int, product: str, crop: str, acres: float
             s.add(AuditEvent(actor_role="SYSTEM", actor_id="allocator", action="RESERVE",
                              entity="token", entity_id=code,
                              detail={"centre": cur_centre, "qty": qty, "pickup": cur_date}))
+            s.flush()  # token id needed for provenance rows
+            farmer_t = s.get(Farmer, farmer_id)
+            _write_proposal(s, provenance, farmer_t, request_id=r.id, token_id=t.id)
+            _prov(s, token_id=t.id, request_id=r.id, step="validated",
+                  actor_type="RULE", actor="rule engine",
+                  detail={"reason_code": cur_code})
+            _prov(s, token_id=t.id, request_id=r.id, step="reserved",
+                  actor_type="RULE", actor="rule engine",
+                  detail={"centre_id": cur_centre, "qty": qty,
+                          "pickup_date": cur_date, "slot": slot})
             return {"outcome": "ISSUED", "request_id": r.id, "token_code": code,
                     "centre_id": cur_centre, "pickup_date": cur_date, "slot": slot,
                     "urgent": cur_urgent, "reason_code": cur_code, "reason_en": cur_en}
@@ -327,6 +381,9 @@ def expire_and_promote(db, today: str, cfg: dict | None = None) -> dict:
                 req = s.get(Request, t.request_id)
                 if req:
                     req.status = "CANCELLED"
+                _prov(s, token_id=t.id, request_id=t.request_id, step="expired",
+                      actor_type="RULE", actor="rule engine",
+                      detail={"released_qty": t.qty_bags})
                 expired += 1
     # Promote outside the expiry txn to reuse request_token's own transactions
     entries = db.query(WaitlistEntry).filter(WaitlistEntry.status == "WAITING").all()
@@ -366,6 +423,14 @@ def expire_and_promote(db, today: str, cfg: dict | None = None) -> dict:
                                 today=today, cfg=cfg)
             if res.get("outcome") == "ISSUED":
                 promoted += 1
+                nt = db.query(Token).filter(
+                    Token.code == res.get("token_code")).first()
+                if nt is not None:
+                    db.add(ProvenanceEvent(
+                        token_id=nt.id, request_id=nt.request_id, step="promoted",
+                        actor_type="RULE", actor_name="rule engine",
+                        detail={"from_waitlist": e.id}, ts=_utcnow()))
+                    db.commit()
             else:  # could not fulfil after all -> restore waiting state
                 e.status = "WAITING"
                 req.status = "WAITLISTED"
@@ -405,6 +470,9 @@ def redeem_token(db, code: str, operator_id: str, today: str,
         village = s.get(Village, farmer.village_id) if farmer else None
         s.add(AuditEvent(actor_role="OPERATOR", actor_id=operator_id, action="REDEEM",
                          entity="token", entity_id=code, detail={"qty": t.qty_bags}))
+        _prov(s, token_id=t.id, request_id=t.request_id, step="redeemed",
+              actor_type="HUMAN", actor=f"operator:{operator_id}",
+              detail={"qty": t.qty_bags})
         ident = {"farmer_name": farmer.name if farmer else "?",
                  "village": village.name if village else "?",
                  "qty": t.qty_bags, "product": t.product}

@@ -27,7 +27,8 @@ def db():
     s = SessionLocal()
     try:
         # clean all rows for isolation
-        for t in ["discrepancy", "audit_event", "verification", "waitlist_entry",
+        for t in ["provenance_event", "discrepancy", "audit_event", "verification",
+                  "waitlist_entry",
                   "token", "request", "farmer", "stock_ledger", "stock_pool",
                   "stock_lot", "village", "centre", "user", "meta"]:
             s.execute(text(f"DELETE FROM {t}"))

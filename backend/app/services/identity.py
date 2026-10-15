@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from .. import config as default_config
 from ..db import immediate_txn
 from ..models import AuditEvent, Farmer, Request, StockLedger, StockPool, Token, Verification, Village
+from .tokens import _prov  # provenance helper (tokens never imports identity)
 
 # In-memory mock OTP store: {phone: {code, attempts}}. Mock only — real impl
 # would call an SMS gateway; the UI labels every OTP surface MOCK.
@@ -148,4 +149,25 @@ def verifier_decide(db, *, farmer_id: int, verifier_id: str, decision: str,
         s.add(AuditEvent(actor_role="VERIFIER", actor_id=verifier_id,
                          action=f"VERIFY_{decision}", entity="farmer",
                          entity_id=str(farmer_id), detail={"note": note}))
+        # Provenance (v3): attach the human tenant decision to the farmer's
+        # open tokens/requests so token timelines show the verifier step.
+        open_toks = s.query(Token).filter(
+            Token.farmer_id == farmer_id,
+            Token.status.in_(["ISSUED", "REDEEMED"])).all()
+        open_reqs = s.query(Request).filter(
+            Request.farmer_id == farmer_id,
+            Request.status.in_(["ISSUED", "WAITLISTED", "COMPLETED"])).all()
+        seen_requests = set()
+        for t in open_toks:
+            _prov(s, token_id=t.id, request_id=t.request_id,
+                  step="tenant_approved" if decision == "APPROVED" else "tenant_rejected",
+                  actor_type="HUMAN", actor=f"verifier:{verifier_id}",
+                  detail={"note": note})
+            seen_requests.add(t.request_id)
+        for r in open_reqs:
+            if r.id not in seen_requests:
+                _prov(s, token_id=None, request_id=r.id,
+                      step="tenant_approved" if decision == "APPROVED" else "tenant_rejected",
+                      actor_type="HUMAN", actor=f"verifier:{verifier_id}",
+                      detail={"note": note})
     return {"ok": True, "decision": decision}

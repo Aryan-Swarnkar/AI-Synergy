@@ -54,7 +54,8 @@ def create_request(body: RequestIn, cur: dict = Depends(require_roles("FARMER"))
     res = request_token(db, farmer_id=fid, product=body.product, crop=body.crop,
                         acres=acres, qty=body.qty, sowing_date=body.sowing_date,
                         idempotency_key=body.idempotency_key,
-                        today=demo_today_of(db), cfg=config.get_config())
+                        today=demo_today_of(db), cfg=config.get_config(),
+                        provenance=body.provenance)
     if res.get("outcome") == "ISSUED":
         t = db.query(Token).filter(Token.code == res["token_code"]).first()
         res["token"] = _token_out(db, t) if t else None
@@ -87,6 +88,24 @@ def get_token(code: str, db=Depends(_db)):
     out["farmer_name"] = farmer.name if farmer else "?"
     out["village"] = village.name if village else "?"
     return out
+
+
+@router.get("/tokens/{code}/provenance")
+def provenance(code: str, db=Depends(_db)):
+    """Decision provenance timeline: which step was AI / rule / human (v3)."""
+    from ..models import ProvenanceEvent
+    t = db.query(Token).filter(Token.code == code).first()
+    if t is None:
+        raise BusinessError("TOKEN_NOT_FOUND", "Token not found", "टोकन नहीं मिला", 404)
+    rows = db.query(ProvenanceEvent).filter(
+        ProvenanceEvent.token_id == t.id).order_by(ProvenanceEvent.id).all()
+    waiting = db.query(ProvenanceEvent).filter(
+        ProvenanceEvent.token_id.is_(None),
+        ProvenanceEvent.request_id == t.request_id).order_by(ProvenanceEvent.id).all()
+    chain = waiting + rows
+    return {"code": code, "timeline": [
+        {"step": e.step, "actor_type": e.actor_type, "actor": e.actor_name,
+         "detail": e.detail, "ts": str(e.ts)} for e in chain]}
 
 
 def _own_token(db, code: str, fid: int) -> None:

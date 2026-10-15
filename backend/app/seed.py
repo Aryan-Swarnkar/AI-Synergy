@@ -58,7 +58,8 @@ def seed() -> dict:
     db = SessionLocal()
     try:
         # Wipe (child -> parent order)
-        for t in ["discrepancy", "audit_event", "verification", "waitlist_entry",
+        for t in ["provenance_event", "discrepancy", "audit_event", "verification",
+                  "waitlist_entry",
                   "token", "request", "farmer", "stock_ledger", "stock_pool",
                   "stock_lot", "village", "centre", "user", "meta"]:
             db.execute(text(f"DELETE FROM {t}"))

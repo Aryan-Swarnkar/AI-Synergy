@@ -116,6 +116,19 @@ class Token(Base):
     redeemed_by: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
 
+class ProvenanceEvent(Base):
+    """Decision provenance (v3): which step was AI / rule engine / human."""
+    __tablename__ = "provenance_event"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token_id: Mapped[int | None] = mapped_column(ForeignKey("token.id"), nullable=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("request.id"), nullable=False)
+    step: Mapped[str] = mapped_column(String(40), nullable=False)
+    actor_type: Mapped[str] = mapped_column(String(10), nullable=False)  # AI|RULE|HUMAN
+    actor_name: Mapped[str] = mapped_column(String(120), default="")
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
 class WaitlistEntry(Base):
     __tablename__ = "waitlist_entry"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
