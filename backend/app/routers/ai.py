@@ -36,6 +36,34 @@ def status():
             "mock_note": "rule-based stand-in; LLM plug-in ready"}
 
 
+class DismissIn(BaseModel):
+    kind: str
+    entity: str
+
+
+@router.get("/ai/anomalies")
+def anomalies():
+    from ..ai import anomaly as an
+    from ..db import SessionLocal
+    db = SessionLocal()
+    try:
+        return {"flags": an.flag(db),
+                "mock_note": "statistics over system signals; flags only, no penalties"}
+    finally:
+        db.close()
+
+
+@router.post("/ai/anomalies/dismiss")
+def anomalies_dismiss(body: DismissIn):
+    from ..ai import anomaly as an
+    from ..db import SessionLocal
+    db = SessionLocal()
+    try:
+        return an.dismiss(db, kind=body.kind, entity=body.entity)
+    finally:
+        db.close()
+
+
 @router.get("/ai/forecast")
 def get_forecast(weeks_ahead: int = 4, seed: int = 42):
     from ..ai import forecast as fc
