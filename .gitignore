@@ -21,3 +21,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Nested scaffold repo (own remote, own history) — not part of this project.
+AI-Synergy/
