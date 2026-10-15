@@ -63,3 +63,12 @@ Logged per SPEC §14: where the spec is silent, simplest option consistent with 
 44. **Missing ownership:** any farmer could reschedule/cancel anyone's token. Both routes now 403 unless `token.farmer_id == caller`.
 45. **Client-supplied acres:** entitlement now uses REGISTERED acres (client figure ignored) — inflated-acres quota gaming rejected with OVER_ENTITLEMENT.
 46. **Clock corruption:** `POST /admin/tick?date=abc` was accepted and persisted, silently expiring everything. Date is validated (400 BAD_DATE) before persisting. Operator `receive/audit` qtys validated; `/sim/run` capped at 8000 farmers.
+
+## v3 AI layer + judging features
+47. **No LLM key required:** rule-based intake (30/30 fixtures) + template explainer are default; `ai/llm.py` (stdlib-only) tries an OpenAI-compatible endpoint only when `LLM_API_KEY` is set, and any failure falls back silently. Keys live in `backend/.env` (gitignored); `.env.example` documents Gemini's free endpoint.
+48. **Parser tie-breaks:** ISO dates blanked before tokenising; numbers attach to the nearest keyword with forward attachment winning ties ("2 acres"); Devanagari digits + number-words + `din/दिन` relatives + `DD month` supported.
+49. **Forecast honesty:** first model (all-history mean) LOST to naive (10.33 vs 4.31) — kept the world, upgraded to standard EWMA(0.7) which wins fairly (3.92 vs 4.31). Synthetic history labelled as such.
+50. **Provenance is additive:** rows written inside existing transactions; waitlist-stage rows carry `token_id NULL` and merge into the token timeline on issue. No existing test changed.
+51. **Sim indexing:** sim arrays are positional; closed centres shift ids — arrivals/aggregation now map id→position. `served_centre` stays positional by design.
+52. **Closed-centre stock moves** to the nearest open centre (officer redistribution, visible); total supply preserved. New sim products reuse the live `rate()` allowlist (`EXTRA_PRODUCTS`, demo ZINC rates). Console numeric ranges validated (400s, never 500s).
+53. **Detour passthrough:** console `MAX_DETOUR_*` (and other UPPER-case allocator keys) flow into sim runs; verified by a determinism test showing assignments change (direction intentionally unasserted).

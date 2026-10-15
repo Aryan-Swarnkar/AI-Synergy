@@ -57,6 +57,34 @@ Prereqs: Python 3.11+ with `uv`, Node 18+.
    "Where KhadSetu does not help" panel; run `shortage_20pct` for honesty
    under scarcity (shortage-driven non-service is similar in both systems).
 
+## v3 AI layer (AI proposes. Rules dispose. Humans decide.)
+
+Four AI components, each a recommendation with guardrails + human override.
+Rule-based paths are default and tested; LLM is optional via `backend/.env`
+(gitignored — never commit keys; see `backend/.env.example`):
+
+- **AI-1 intake** (`/intake` page, `POST /ai/parse`): Hindi/Hinglish/English
+  text or voice → structured request + confidence; farmer edits and taps
+  Confirm (plain form always available). Parser accuracy 30/30 on labelled
+  fixtures (`backend/app/ai/fixtures_intake.py`).
+- **AI-2 forecast** (Officer page, `GET /ai/forecast`): per centre/product/week
+  demand with interval; MAE reported vs naive baseline (synthetic history).
+- **AI-3 anomaly watch** (Officer page, `GET /ai/anomalies`): ranked flags
+  with reasons; dismissals logged. Flags only — never penalises.
+- **AI-4 explainer** (`POST /ai/explain`, shown on token cards): paraphrases
+  only the decision record; fidelity-checked, template fallback.
+- **Decision provenance**: every token carries an AI/RULE/HUMAN timeline
+  (`GET /tokens/{code}/provenance`, shown in app).
+- **Constraint Console** (Simulator page): supply −30%, OTP/no-show, cap,
+  detour, closed centres (stock redistributed), new product (allowlisted,
+  e.g. ZINC) → before/after for both policies in seconds.
+
+Measured results (`results.json`, via `uv run --directory backend python make_results.py`):
+500 farmers × 3 seeds — served-in-window baseline 19.7% vs KhadSetu 37.8%;
+wasted trips/farmer 1.31 vs 0.02; intake 30/30; forecast MAE 3.92 vs naive
+4.31; 100 threads on 50 bags: 0 over-reserved. Where KhadSetu does not help
+(e.g. travel 22.1 vs 22.9 km) is listed in the findings.
+
 ## What is mocked / integration-ready
 
 | Mock (MOCK badge) | Real integration point |
@@ -74,9 +102,10 @@ security, partial fulfilment, multi-product baskets.
 `backend/app/{config,db,models,auth,errors,demo,main,seed}.py`
 `backend/app/core/` (PURE allocator: `types,geo,norms,allocator` — no DB/web imports)
 `backend/app/services/` (`tokens,identity,stock,analytics`)
-`backend/app/routers/` (`auth,farmers,tokens,centres,verifier,officer,admin,sim`)
+`backend/app/routers/` (`auth,farmers,tokens,centres,verifier,officer,admin,sim,ai`)
+`backend/app/ai/` (`llm,intake,forecast,anomaly,explain` + fixtures)
 `backend/app/sim/` (`generator,baseline,khadsetu,runner,metrics`)
-`backend/tests/` (30 tests) · `frontend/src/` (8 pages + EN/HI locales)
+`backend/tests/` (58 tests) · `frontend/src/` (9 pages + EN/HI locales)
 
 See `ASSUMPTIONS.md` for every silent-spec decision.
 `backend/verify_demo.py` replays the script above against a live server

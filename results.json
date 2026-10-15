@@ -1,0 +1,34 @@
+{
+ "sim": {
+  "params": {
+   "n_farmers": 500,
+   "n_centres": 6,
+   "n_villages": 30
+  },
+  "seeds": [
+   1,
+   2,
+   3
+  ],
+  "served_in_window_pct": {
+   "baseline": 19.7,
+   "khadsetu": 37.8
+  },
+  "wasted_trips_per_farmer": {
+   "baseline": 1.31,
+   "khadsetu": 0.02
+  },
+  "findings": [
+   "Where KhadSetu does not help — avg_travel_km_per_served: KhadSetu worse (baseline 22.1 vs KhadSetu 22.9). travel is similar; detour tolerance trades distance for stock certainty.",
+   "Honesty note: KhadSetu cannot create fertiliser; it removes wasted trips and makes shortage visible and fair."
+  ]
+ },
+ "intake_accuracy": "30/30",
+ "forecast_mae": {
+  "model": 3.92,
+  "naive": 4.31
+ },
+ "concurrency": "100 threads on 50 bags: 0 over-reserved (pytest tests/test_concurrency.py)",
+ "anomaly_injection": "recall 4/4 kinds, precision 100% (pytest tests/test_ai_anomaly.py)",
+ "note": "Baseline is our model of the described system, not measured data."
+}
