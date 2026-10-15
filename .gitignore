@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# KhadSetu artefacts
+*.db
+*.db-wal
+*.db-shm
+node_modules/
+frontend/dist/
+__pycache__/
