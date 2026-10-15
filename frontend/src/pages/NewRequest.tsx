@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { QRCodeSVG } from 'qrcode.react'
 import { api } from '../api'
 import { MockBadge } from '../components/MockBadge'
+import { Provenance } from '../components/Provenance'
 
 type Res = {
   outcome: string; token_code?: string; centre_id?: number; pickup_date?: string;
@@ -59,6 +60,7 @@ export function NewRequest() {
             <p className="mt-2">{res.token.centre} · {res.token.pickup_date} · {res.token.slot}</p>
             <p className="text-sm">{t('request.validUntil')}: {res.token.expires_at}</p>
             <div className="card !bg-green-50 mt-2"><b>{t('request.why')}:</b> {reason}</div>
+            {res.token && <Provenance code={res.token.code} />}
           </div>
         )}
         {res?.outcome === 'WAITLISTED' && (

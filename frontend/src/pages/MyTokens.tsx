@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../api'
+import { Provenance } from '../components/Provenance'
 
 type Tok = { code: string; centre: string; pickup_date: string; slot: string; status: string; expires_at: string }
 
@@ -49,6 +50,7 @@ export function MyTokens() {
               <button className="btn2" onClick={() => act(x.code, 'reschedule')}>{t('request.reschedule')}</button>
               <button className="btn2" onClick={() => act(x.code, 'cancel')}>{t('request.cancel')}</button>
             </div>}
+            <Provenance code={x.code} />
           </div>
         ))}
         {toks.length === 0 && <p className="text-stone-500 mt-2">—</p>}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import { TopBar } from './components/TopBar'
 import { Explain } from './pages/Explain'
+import { Intake } from './pages/Intake'
 import { Login } from './pages/Login'
 import { MyTokens } from './pages/MyTokens'
 import { NewRequest } from './pages/NewRequest'
@@ -14,7 +15,7 @@ import { Verifier } from './pages/Verifier'
 function RoleLinks() {
   const { t } = useTranslation()
   const links: Array<[string, string]> = [
-    ['/request', t('nav.request')], ['/tokens', t('nav.tokens')],
+    ['/request', t('nav.request')], ['/intake', t('nav.intake')], ['/tokens', t('nav.tokens')],
     ['/operator', t('nav.operator')], ['/verifier', t('nav.verifier')],
     ['/officer', t('nav.officer')], ['/sim', t('nav.sim')], ['/how', t('nav.how')],
   ]
@@ -37,6 +38,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/request" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/request" element={<NewRequest />} />
+          <Route path="/intake" element={<Intake />} />
           <Route path="/tokens" element={<MyTokens />} />
           <Route path="/operator" element={<Operator />} />
           <Route path="/verifier" element={<Verifier />} />
