@@ -25,6 +25,8 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 ACCENT = "#15803d"
 INK = "#222222"
+TEAM = "404_Brain_not_found"
+MEMBERS = "Priyanshi Nagariya, Aryan Swarnkar, Kamlesh, Mayank Sejwar"
 
 with open(ROOT / "results.json", encoding="utf-8") as f:
     RES = json.load(f)
@@ -142,7 +144,7 @@ def new_pdf(title):
             self.set_y(-15)
             self.set_font("Helvetica", "I", 8)
             self.set_text_color(120, 120, 120)
-            self.cell(0, 10, f"{title}  |  Team [NAME], AI Synergy Hackathon 2026  |  p. {self.page_no()}/{{nb}}",
+            self.cell(0, 10, f"{title}  |  {TEAM}, AI Synergy Hackathon 2026  |  p. {self.page_no()}/{{nb}}",
                       align="C")
 
     pdf = Doc()
@@ -208,7 +210,7 @@ def fig(pdf, path, w=170):
 def build_brief():
     pdf = new_pdf("Case Investigation Brief")
     cover(pdf, "Case Investigation Brief: Fertiliser Token",
-          "Team [NAME]  |  AI Synergy Hackathon 2026  |  KhadSetu: a token should be a promise, not a queue number.",
+          f"{TEAM}  |  {MEMBERS}  |  AI Synergy Hackathon 2026  |  KhadSetu: a token should be a promise, not a queue number.",
           ["Track: [your track, e.g. AI in Agriculture / AI for All]",
            "Case: a farmer must get a digital token before buying fertiliser; today the token is a queue position, not a guarantee.",
            "This brief states what we know, what we assume, and what we still must verify."])
@@ -290,7 +292,7 @@ def build_brief():
 def build_srs():
     pdf = new_pdf("SRS / Implementation Plan")
     cover(pdf, "Software Requirements and Implementation Plan: KhadSetu v1",
-          "Team [NAME]  |  One district in v1  |  AI proposes. Rules dispose. Humans decide.",
+          f"{TEAM}  |  {MEMBERS}  |  One district in v1  |  AI proposes. Rules dispose. Humans decide.",
           ["Scope: stock-backed tokens matched to sowing dates and nearest feasible centre, "
            "inclusion fallbacks, simulator-tested rules, four bounded AI assists.",
            "Out of scope in v1: real AgriStack/iFMS/SMS, payments, partial fulfilment, statewide scale."])
