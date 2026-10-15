@@ -20,12 +20,27 @@ export function NewRequest() {
   const [sowing, setSowing] = useState('2026-06-27')
   const [res, setRes] = useState<Res | null>(null)
   const [msg, setMsg] = useState('')
+  const [expl, setExpl] = useState('')
 
   const submit = () =>
     api.post('/requests', {
       product, crop, acres: Number(acres), qty: Number(qty),
       sowing_date: sowing, idempotency_key: `web-${Date.now()}`,
-    }).then((r) => { setRes(r as Res); setMsg('') }).catch((e) => setMsg(String(e)))
+    }).then((r) => {
+      const v = r as Res
+      setRes(v)
+      setMsg('')
+      setExpl('')
+      const record: Record<string, unknown> = {
+        outcome: v.outcome, qty, product,
+        centre: v.token?.centre, pickup_date: v.token?.pickup_date ?? v.pickup_date,
+        days_early: '', eta_date: v.eta_date, reason_code: (v as { reason_code?: string }).reason_code,
+      }
+      api.post('/ai/explain', { record }).then((e) => {
+        const x = e as { text_en: string; text_hi: string }
+        setExpl(i18n.language === 'hi' ? x.text_hi : x.text_en)
+      }).catch(() => undefined)
+    }).catch((e) => setMsg(String(e)))
 
   const reason = res ? (i18n.language === 'hi' ? res.reason_hi : res.reason_en) ?? res.reason ?? '' : ''
 
@@ -72,6 +87,7 @@ export function NewRequest() {
           </div>
         )}
         {res?.outcome === 'REJECTED' && <p className="text-red-700 font-semibold">{reason}</p>}
+        {expl && <p className="text-sm mt-2 p-2 bg-blue-50 rounded">💬 {expl}<MockBadge /></p>}
       </div>
     </div>
   )

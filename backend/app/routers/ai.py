@@ -64,6 +64,16 @@ def anomalies_dismiss(body: DismissIn):
         db.close()
 
 
+class ExplainIn(BaseModel):
+    record: dict
+
+
+@router.post("/ai/explain")
+def explain(body: ExplainIn):
+    from ..ai import explain as ex
+    return {**ex.explain(body.record), "mock_note": "template by default; LLM paraphrase only if key set"}
+
+
 @router.get("/ai/forecast")
 def get_forecast(weeks_ahead: int = 4, seed: int = 42):
     from ..ai import forecast as fc
