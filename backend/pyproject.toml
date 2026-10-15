@@ -16,3 +16,8 @@ dependencies = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Third-party only: starlette's httpx-based TestClient deprecation (no httpx2
+# migration path exists for us). Our own DeprecationWarnings still surface.
+filterwarnings = [
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated:Warning",
+]

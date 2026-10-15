@@ -38,3 +38,10 @@ Logged per SPEC §14: where the spec is silent, simplest option consistent with 
 27. **Audit cancel condition** is `reserved > counted - buffer` (physical cannot cover holds), not the literal §5.5 'shortfall exceeds reserved' (which would miss counted < reserved cases). Newest-issued cancelled first, each with RELEASE ledger; farmers re-run through `request_token` under `{old}:audit:{code}` with notification text.
 28. **Redeem window** is `[pickup, pickup+grace]` inclusive; success does `on_hand -= qty; reserved -= qty` + REDEEM ledger + Request COMPLETED and returns farmer name+village for the operator's visual ID check (no hard biometric in MVP).
 29. **Reschedule** releases the old hold then reserves afresh (new key `{old}:resched:{n}`, `reschedules_used` carried over); beyond FREE_RESCHEDULES the API must say cancel + new request. No partial fulfilment.
+
+## Phase 5 — API completion
+30. **Demo auth is advisory:** bearer = base64(`role:user_id`); FARMER `user_id` must be the farmer id. Operator endpoints do not bind to the operator's own centre (redeem is centre-agnostic; the token's own centre is authoritative). `/admin/*` intentionally unauthenticated for demo-clock driving.
+31. **Business REJECTED is HTTP 200** with `outcome: REJECTED` (not an error); malformed/auth/business failures use `{error_code, message, message_hi}` at 400/401/403/404/409/429. `429` reserved for verifier DAILY_LIMIT path (currently 409; routers map it explicitly).
+32. **Sim stubs:** `GET /sim/presets` is real data; `POST /sim/run|sensitivity`, `GET /sim/{id}` return well-formed 501 `SIM_NOT_READY` until Phase 6 (smoke test accepts 200-or-501-with-envelope). `/sim/presets` before `/sim/{run_id}` in route order so the literal path wins.
+33. **Waitlist position** is computed per-product among WAITING entries in `(deadline, acres, created)` order. Rule-preview replays WAITING demand through pure `decide()` under base vs patched config — fully read-only.
+34. **Pytest warning filter** silences only the third-party `starlette.testclient` httpx deprecation (no httpx2 migration exists); our own warnings still fail loudly (none remain).
