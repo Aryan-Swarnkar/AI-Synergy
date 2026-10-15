@@ -11,7 +11,7 @@ from .db import SessionLocal, init_db
 from .demo import demo_today_of
 from .errors import BusinessError, business_handler
 from .models import Meta
-from .routers import admin, auth, centres, farmers, officer, sim, tokens, verifier
+from .routers import admin, ai, auth, centres, farmers, officer, sim, tokens, verifier
 from .schemas import HealthOut
 
 
@@ -40,7 +40,8 @@ app.add_middleware(
 )
 
 for _r in (auth.router, farmers.router, tokens.router, centres.router,
-           verifier.router, officer.router, admin.router, sim.router):
+           verifier.router, officer.router, admin.router, sim.router,
+           ai.router):
     app.include_router(_r, prefix="/api")
 
 
