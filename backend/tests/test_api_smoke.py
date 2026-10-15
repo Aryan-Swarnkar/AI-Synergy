@@ -122,15 +122,18 @@ def test_api_smoke(client):
                      headers=_h(off))
     assert rp.json()["read_only"] is True
 
-    # --- simulator (presets live; runner lands Phase 6) ---
+    # --- simulator (live since Phase 6) ---
     pr = client.get("/api/sim/presets")
     assert len(pr.json()["presets"]) == 5
-    for r in (client.post("/api/sim/run"),
-              client.post("/api/sim/sensitivity"),
-              client.get("/api/sim/abc")):
-        assert r.status_code in (200, 501), r.text
-        if r.status_code == 501:
-            _err_format(r)
+    tiny = {"n_farmers": 100, "n_centres": 4, "n_villages": 12}
+    r = client.post("/api/sim/run", json={"params": tiny, "seeds": [1]})
+    assert r.status_code == 200, r.text
+    assert client.get(f"/api/sim/{r.json()['run_id']}").status_code == 200
+    s = client.post("/api/sim/sensitivity",
+                    json={"param": "supply_ratio", "values": [0.8, 1.0],
+                          "seeds": [1], "params": tiny})
+    assert s.status_code == 200, s.text
+    _err_format(client.get("/api/sim/nope"))
 
     # --- reset demo LAST (wipes) ---
     assert client.post("/api/admin/reset-demo").json()["reset"] is True

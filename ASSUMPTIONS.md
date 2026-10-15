@@ -45,3 +45,10 @@ Logged per SPEC §14: where the spec is silent, simplest option consistent with 
 32. **Sim stubs:** `GET /sim/presets` is real data; `POST /sim/run|sensitivity`, `GET /sim/{id}` return well-formed 501 `SIM_NOT_READY` until Phase 6 (smoke test accepts 200-or-501-with-envelope). `/sim/presets` before `/sim/{run_id}` in route order so the literal path wins.
 33. **Waitlist position** is computed per-product among WAITING entries in `(deadline, acres, created)` order. Rule-preview replays WAITING demand through pure `decide()` under base vs patched config — fully read-only.
 34. **Pytest warning filter** silences only the third-party `starlette.testclient` httpx deprecation (no httpx2 migration exists); our own warnings still fail loudly (none remain).
+
+## Phase 6 — Simulator
+35. **Single-product (UREA) model** with per-crop UREA dose rates; geography in km (lat/lon = km/111 for the allocator, relative order preserved). Day N ↔ SEASON_START + (N-1) bridges int-days and ISO dates.
+36. **Sim ledger mirrors live redeem:** a serve decrements ledger AND real AND reserved. (First version forgot ledger, issuing against ghost stock — caught by forensics, fixed; shrinkage=0 now yields zero counter stockouts.)
+37. **Counter-short retry re-decides** (waitlist instead of a pointless second trip), mirroring the live API; the baseline keeps dumb retries as the contrast. No-show → unserved on both sides.
+38. **Unserved split is an estimate:** `shortage = min(never, round(N × max(0, 1 - ratio)))`, rest = process. Honest-findings flags any metric where KhadSetu is not better by margin, always adds the scarcity sentence at ratio ≤ 0.8 plus the cannot-create-fertiliser note.
+39. **`/sim/run` is a background task** with progress (default 5 seeds can exceed 20 s at full size; one seed ≈ 4 s). Sensitivity runs synchronously; tests/API smoke use tiny districts.
