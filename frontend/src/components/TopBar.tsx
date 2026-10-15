@@ -20,8 +20,15 @@ export function TopBar() {
   const switchRole = (r: string) => {
     setRole(r)
     localStorage.setItem('ks_role', r)
-    localStorage.removeItem('ks_token')
-    nav(r === 'farmer' ? '/login' : `/${r}`)
+    if (r === 'farmer' || r === 'sim') {
+      // farmer token comes from Login/Register; sim endpoints are public
+      localStorage.removeItem('ks_token')
+      nav(r === 'farmer' ? '/login' : '/sim')
+      return
+    }
+    // staff demo login (MOCK auth) so pages work out of the box
+    const map: Record<string, string> = { operator: '/operator', verifier: '/verifier', officer: '/officer' }
+    api.login(r.toUpperCase(), '1').then(() => nav(map[r] ?? '/how')).catch(() => nav(map[r] ?? '/how'))
   }
 
   const tick = (date?: string) => {

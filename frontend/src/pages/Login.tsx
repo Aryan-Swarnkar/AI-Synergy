@@ -5,7 +5,7 @@ import { MockBadge } from '../components/MockBadge'
 
 export function Login() {
   const { t } = useTranslation()
-  const [phone, setPhone] = useState('9876500000')
+  const [phone, setPhone] = useState('9876501000')
   const [code, setCode] = useState('')
   const [fails, setFails] = useState(0)
   const [fb, setFb] = useState<string[] | null>(null)

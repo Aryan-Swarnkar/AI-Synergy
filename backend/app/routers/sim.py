@@ -57,6 +57,9 @@ def presets():
 
 @router.post("/sim/run")
 def run(body: RunIn, bg: BackgroundTasks):
+    if body.params.get("n_farmers", 5000) > 8000:
+        raise BusinessError("TOO_BIG", "n_farmers capped at 8000 for demo runs",
+                            "अधिकतम 8000 किसान", 400)
     run_id = uuid.uuid4().hex[:8]
     _RUNS[run_id] = {"status": "running", "progress": 0.0,
                      "params": body.params, "seeds": body.seeds}

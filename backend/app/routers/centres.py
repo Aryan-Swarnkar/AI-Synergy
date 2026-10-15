@@ -76,6 +76,16 @@ def redeem(cid: int, body: RedeemIn,
 def receive(cid: int, body: ReceiveLotIn,
             cur: dict = Depends(require_roles("OPERATOR")), db=Depends(_db)):
     _centre(db, cid)
+    if body.qty <= 0:
+        raise BusinessError("BAD_QTY", "Delivery qty must be positive",
+                            "मात्रा धनात्मक होनी चाहिए", 400)
+    try:
+        y, m, d = (int(x) for x in body.arrival_date.split("-"))
+        from datetime import date
+        date(y, m, d)
+    except (ValueError, TypeError):
+        raise BusinessError("BAD_DATE", "arrival_date must be YYYY-MM-DD",
+                            "तिथि YYYY-MM-DD होनी चाहिए", 400)
     return receive_svc(db, centre_id=cid, product=body.product, qty=body.qty,
                        arrival_date=body.arrival_date, operator_id=cur["user_id"])
 
@@ -85,6 +95,9 @@ def audit(cid: int, body: AuditIn,
           cur: dict = Depends(require_roles("OPERATOR")), db=Depends(_db)):
     from .. import config
     _centre(db, cid)
+    if body.counted_qty < 0:
+        raise BusinessError("BAD_QTY", "Counted qty cannot be negative",
+                            "गिनती ऋणात्मक नहीं हो सकती", 400)
     return audit_svc(db, centre_id=cid, product=body.product,
                      counted_qty=body.counted_qty, operator_id=cur["user_id"],
                      today=demo_today_of(db), cfg=config.get_config())

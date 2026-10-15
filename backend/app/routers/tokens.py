@@ -47,8 +47,12 @@ def create_request(body: RequestIn, cur: dict = Depends(require_roles("FARMER"))
                    db=Depends(_db)):
     from .. import config
     fid = _farmer_id(cur, db)
+    # Anti-gaming: entitlement is computed from REGISTERED acres, never the
+    # client-supplied figure (a client could otherwise inflate its quota).
+    farmer = db.get(Farmer, fid)
+    acres = farmer.acres if farmer else body.acres
     res = request_token(db, farmer_id=fid, product=body.product, crop=body.crop,
-                        acres=body.acres, qty=body.qty, sowing_date=body.sowing_date,
+                        acres=acres, qty=body.qty, sowing_date=body.sowing_date,
                         idempotency_key=body.idempotency_key,
                         today=demo_today_of(db), cfg=config.get_config())
     if res.get("outcome") == "ISSUED":
@@ -85,11 +89,21 @@ def get_token(code: str, db=Depends(_db)):
     return out
 
 
+def _own_token(db, code: str, fid: int) -> None:
+    t = db.query(Token).filter(Token.code == code).first()
+    if t is None:
+        raise BusinessError("TOKEN_NOT_FOUND", "Token not found", "टोकन नहीं मिला", 404)
+    if t.farmer_id != fid:
+        raise BusinessError("FORBIDDEN", "This token belongs to another farmer",
+                            "यह टोकन दूसरे किसान का है", 403)
+
+
 @router.post("/tokens/{code}/reschedule")
 def reschedule(code: str, cur: dict = Depends(require_roles("FARMER")),
                db=Depends(_db)):
     from .. import config
-    _farmer_id(cur, db)
+    fid = _farmer_id(cur, db)
+    _own_token(db, code, fid)
     res = reschedule_token(db, code, demo_today_of(db), config.get_config())
     if res.get("ok") is False and res.get("error") in ("NOT_FOUND",):
         raise BusinessError("TOKEN_NOT_FOUND", "Token not found", "टोकन नहीं मिला", 404)
@@ -98,7 +112,8 @@ def reschedule(code: str, cur: dict = Depends(require_roles("FARMER")),
 
 @router.post("/tokens/{code}/cancel")
 def cancel(code: str, cur: dict = Depends(require_roles("FARMER")), db=Depends(_db)):
-    _farmer_id(cur, db)
+    fid = _farmer_id(cur, db)
+    _own_token(db, code, fid)
     res = cancel_token(db, code)
     if res.get("ok") is False:
         raise BusinessError("TOKEN_NOT_FOUND" if res.get("error") == "NOT_FOUND" else "TOKEN_STATE",

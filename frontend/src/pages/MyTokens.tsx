@@ -26,7 +26,11 @@ export function MyTokens() {
   useEffect(() => { load() }, [])
 
   const act = (code: string, op: string) =>
-    api.post(`/tokens/${code}/${op}`).then(load).catch((e) => setMsg(String(e)))
+    api.post(`/tokens/${code}/${op}`).then((r) => {
+      const v = r as { ok?: boolean; error?: string; message?: string }
+      if (v.ok === false) setMsg(`${v.error ?? 'failed'}${v.message ? `: ${v.message}` : ''}`)
+      load()
+    }).catch((e) => setMsg(String(e)))
 
   return (
     <div className="grid gap-4">
