@@ -1,4 +1,7 @@
-const BASE = 'http://127.0.0.1:8000/api'
+// Overridable: $env:VITE_API_BASE="http://127.0.0.1:8001/api" (else :8000)
+const BASE =
+  (import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_BASE ??
+  'http://127.0.0.1:8000/api'
 
 export function authHeaders(): Record<string, string> {
   const t = localStorage.getItem('ks_token')
