@@ -7,11 +7,17 @@ Idempotent: wipes KhadSetu tables then reseeds. Run: `make seed`.
 from __future__ import annotations
 
 import random
-from datetime import datetime
+from datetime import datetime, timezone
+
+from sqlalchemy import text
 
 from . import config
-from .db import SessionLocal, engine, init_db
+from .db import SessionLocal, init_db
 from .models import Centre, Farmer, Meta, StockLot, StockPool, StockLedger, User, Village
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 PRODUCTS = ["UREA", "DAP", "MOP", "NPK"]
 
@@ -54,8 +60,8 @@ def seed() -> dict:
         # Wipe (child -> parent order)
         for t in ["discrepancy", "audit_event", "verification", "waitlist_entry",
                   "token", "request", "farmer", "stock_ledger", "stock_pool",
-                  "stock_lot", "village", "centre", "user"]:
-            db.execute(__import__("sqlalchemy").text(f"DELETE FROM {t}"))
+                  "stock_lot", "village", "centre", "user", "meta"]:
+            db.execute(text(f"DELETE FROM {t}"))
         db.commit()
 
         # Centres
@@ -92,13 +98,13 @@ def seed() -> dict:
                 else:
                     on_hand = rng.randint(40, 100)
                 lot = StockLot(centre_id=c.id, product=p, qty_bags=on_hand,
-                               arrival_date=_date(0), received_at=datetime.utcnow(),
+                               arrival_date=_date(0), received_at=_utcnow(),
                                source_ref="MOCK-iFMS-rake-01")
                 db.add(lot)
                 db.add(StockPool(centre_id=c.id, product=p, on_hand=on_hand,
                                  reserved=0, discrepancy_total=0))
                 db.add(StockLedger(centre_id=c.id, product=p, delta=on_hand,
-                                   reason="RECEIVE", ref_id="seed", ts=datetime.utcnow()))
+                                   reason="RECEIVE", ref_id="seed", ts=_utcnow()))
         # Future rake for Centre B (+3 days, UREA 200 bags, not yet received)
         db.add(StockLot(centre_id=centres[1].id, product="UREA", qty_bags=200,
                         arrival_date=_date(3), received_at=None,
@@ -122,7 +128,9 @@ def seed() -> dict:
                 phone = f"98765{i:02d}000"
             name = f"{first[i % len(first)]} {last[(i * 3) % len(last)]}"
             if i == 0:
-                name = "Ramesh Patel"  # demo hero (tenant per script -> make tenant)
+                # Demo hero per SPEC §11: tenant + OTP must fail -> explicit 000 phone
+                name = "Ramesh Patel"
+                phone = "9876500000"
                 ftype, verif, audit = "TENANT", "PROVISIONAL", True
                 v = villages[37]  # far village ~38km from Centre A
             db.add(Farmer(

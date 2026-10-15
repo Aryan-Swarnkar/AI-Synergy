@@ -1,16 +1,17 @@
 """SQLAlchemy models (SPEC §4)."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
 
 
 def _now() -> datetime:
-    return datetime.utcnow()
+    # Naive UTC (SQLite-friendly) without deprecated utcnow()
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 class Centre(Base):

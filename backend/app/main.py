@@ -27,8 +27,16 @@ def ensure_demo_today() -> str:
 
 
 def get_demo_today() -> str:
+    """Cheap read for request paths; lifespan ensures tables/row exist."""
     try:
-        return ensure_demo_today()
+        db = SessionLocal()
+        try:
+            row = db.get(Meta, "demo_today")
+            if row is None:
+                return config.SEASON_START
+            return row.value
+        finally:
+            db.close()
     except Exception:
         return config.SEASON_START
 
@@ -50,20 +58,9 @@ app.add_middleware(
 )
 
 
-def get_demo_today() -> str:
-    db = SessionLocal()
-    try:
-        row = db.get(Meta, "demo_today")
-        if row is None:
-            return config.SEASON_START
-        return row.value
-    finally:
-        db.close()
-
-
 @app.get("/api/health", response_model=HealthOut)
 def health() -> HealthOut:
-    return HealthOut(status="ok", demo_today=ensure_demo_today(), season_start=config.SEASON_START)
+    return HealthOut(status="ok", demo_today=get_demo_today(), season_start=config.SEASON_START)
 
 
 @app.get("/health", response_model=HealthOut)
