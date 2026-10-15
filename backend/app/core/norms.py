@@ -27,9 +27,30 @@ CROP_CALENDAR: dict[str, tuple[int, int]] = {
 }
 
 
+def rate(crop: str, product: str) -> float:
+    """Dose rate, including console-added products (validated allowlist)."""
+    r = BAGS_PER_ACRE.get(crop, {}).get(product)
+    if r is not None:
+        return r
+    try:
+        from .. import config as _cfg
+        return _cfg.EXTRA_PRODUCTS.get(product, {}).get(crop, 0.0)
+    except Exception:
+        return 0.0
+
+
+def known_product(product: str) -> bool:
+    if any(product in rates for rates in BAGS_PER_ACRE.values()):
+        return True
+    try:
+        from .. import config as _cfg
+        return product in _cfg.EXTRA_PRODUCTS
+    except Exception:
+        return False
+
+
 def entitlement(acres: float, crop: str, product: str) -> int:
-    rate = BAGS_PER_ACRE.get(crop, {}).get(product, 0.0)
-    return math.ceil(max(0.0, acres) * rate)
+    return math.ceil(max(0.0, acres) * rate(crop, product))
 
 
 def provisional_cap(full_entitlement: int, factor: float) -> int:

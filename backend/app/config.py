@@ -46,6 +46,12 @@ OTP_FAIL_RATE: float = float(_getenv("OTP_FAIL_RATE", 0.15))
 VERIFIER_DAILY_LIMIT: int = int(_getenv("VERIFIER_DAILY_LIMIT", 40))
 DATABASE_URL: str = str(_getenv("DATABASE_URL", "sqlite:///./khadsetu.db"))
 
+# Console-addable products (v3): DEMO rates, not agronomic advice. New product
+# names are validated against this allowlist — never free text.
+EXTRA_PRODUCTS: dict[str, dict[str, float]] = {
+    "ZINC": {"wheat": 0.5, "soybean": 0.5, "paddy": 0.5, "maize": 0.5, "cotton": 0.5},
+}
+
 
 def get_config(overrides: dict | None = None) -> dict:
     """Return config dict; simulator passes overrides without touching globals."""

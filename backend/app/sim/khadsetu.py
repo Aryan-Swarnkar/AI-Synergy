@@ -33,10 +33,16 @@ def _pday(datestr: str) -> int:
 def simulate(d: dict, seed: int, _waste_log: list | None = None) -> dict:
     p = d["params"]
     rng = random.Random(seed * 104729 + 7)
-    cfg = default_config.get_config({
-        "SLOT_CAPACITY": p["slot_capacity"],
-        "OTP_FAIL_RATE": p["otp_fail_rate"],
-    })
+    # Console-tunable allocator keys pass straight through (v3 adaptability).
+    _passthrough = ("SLOT_CAPACITY", "OTP_FAIL_RATE", "MAX_RADIUS_KM",
+                    "MAX_DETOUR_KM_OVER_NEAREST", "SAFETY_BUFFER_PCT", "W_DIST",
+                    "W_CROWD", "W_WAIT", "TOKEN_GRACE_DAYS",
+                    "TENANT_PROVISIONAL_FACTOR", "WAITLIST_ENABLED",
+                    "OVERBOOK_FACTOR")
+    _over = {k: p[k] for k in _passthrough if k in p}
+    _over["SLOT_CAPACITY"] = p["slot_capacity"]  # generator key ≠ config key
+    _over["OTP_FAIL_RATE"] = p["otp_fail_rate"]
+    cfg = default_config.get_config(_over)
     farmers, centres = d["farmers"], d["centres"]
     n_c = len(centres)
     fx = np.array([f["x"] for f in farmers])
@@ -57,9 +63,12 @@ def simulate(d: dict, seed: int, _waste_log: list | None = None) -> dict:
     reserved = [0] * n_c
     pending: list[list] = [[] for _ in range(n_c)]  # [day, qty]
     used: list[dict] = [{} for _ in range(n_c)]
+    pos = {c["id"]: i for i, c in enumerate(centres)}  # ids ≠ positions when centres close
     for cid, lots in d["arrivals"].items():
+        if cid not in pos:
+            continue
         for day, q in lots:
-            pending[cid].append([day, q])
+            pending[pos[cid]].append([day, q])
 
     PF = [{"status": "pending", "retries": 0, "waste_retries": 0, "travel": 0.0,
            "wasted": 0, "served_day": None, "token": None,
@@ -87,7 +96,7 @@ def simulate(d: dict, seed: int, _waste_log: list | None = None) -> dict:
         active = PF[fi]["status"] in ("queued", "waiting")
         return FarmerRequest(
             farmer_id=fi, village_lat=float(flat[fi]), village_lon=float(flon[fi]),
-            product="UREA", crop=f["crop"], acres=f["acres"], qty=PF[fi]["qty"],
+            product=p.get("product", "UREA"), crop=f["crop"], acres=f["acres"], qty=PF[fi]["qty"],
             sowing_date=_dstr(f["sowing_day"]),
             is_tenant_provisional=f["tenant"], has_active_request=active,
             seasonal_remaining=PF[fi]["qty"], created_at=f"{today}T00:00:00")

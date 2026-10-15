@@ -71,8 +71,9 @@ def summarize(res: dict, district: dict) -> dict:
     m["distance_gini"] = _gini([r["travel"] for r in served])
     supplied = district["total_supply"]
     per_c = res["centre_served_qty"]
-    utils = [(per_c.get(c["id"], 0) / max(1, supplied / max(1, len(district["centres"]))))
-             for c in district["centres"]]
+    # served_centre is positional; match district order, not ids (ids shift on closure)
+    utils = [(per_c.get(i, 0) / max(1, supplied / max(1, len(district["centres"]))))
+             for i in range(len(district["centres"]))]
     m["centre_util_max"] = max(utils) if utils else 0.0
     m["centre_util_mean"] = _mean(utils)
     m["supply_ratio"] = district["params"]["supply_ratio"]

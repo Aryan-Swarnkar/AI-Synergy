@@ -31,11 +31,14 @@ def simulate(d: dict, seed: int) -> dict:
     season = p["season_days"]
     tail = season + 10
     real = [0] * n_c
+    pos = {c["id"]: i for i, c in enumerate(centres)}  # ids ≠ positions when centres close
     arr_by_day: dict[int, list[tuple[int, int]]] = {}
     for cid, lots in d["arrivals"].items():
+        if cid not in pos:
+            continue
         for day, q in lots:
             arr_by_day.setdefault(day, []).append(
-                (cid, int(q * (1 - p["shrinkage"]))))
+                (pos[cid], int(q * (1 - p["shrinkage"]))))
     used: list[dict[int, int]] = [{} for _ in range(n_c)]
 
     PF = [{"status": "pending", "retries": 0, "travel": 0.0, "wasted": 0,

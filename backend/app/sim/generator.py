@@ -1,5 +1,6 @@
 """Synthetic district generator (SPEC §7.1). Seeded RNG: same seed → identical
-district. Single-product (UREA) model — demand is UREA entitlement per farmer.
+district. Single-product model (default UREA; console may switch product) —
+demand is that product's entitlement per farmer.
 
 Geography is modelled in km on a 100×100 grid; lat/lon passed to the pure
 allocator are km/111 so haversine ≈ Euclidean km (relative order preserved,
@@ -10,7 +11,7 @@ from __future__ import annotations
 import math
 import random
 
-from ..core.norms import BAGS_PER_ACRE
+from ..core.norms import known_product, rate
 
 PRODUCT = "UREA"
 CROPS = ["soybean", "paddy", "maize", "cotton", "wheat"]
@@ -22,16 +23,26 @@ DEFAULTS = {
     "tenant_share": 0.20, "otp_fail_rate": 0.15, "no_show_rate": 0.10,
     "supply_ratio": 0.95, "shrinkage": 0.03, "slot_capacity": 25,
     "max_retries": 3,
+    # v3 Constraint Console:
+    "product": PRODUCT, "supply_multiplier": 1.0, "closed_centres": [],
+    "cap_scale": 1.0,
 }
 
 
-def _entitlement(acres: float, crop: str) -> int:
-    return math.ceil(acres * BAGS_PER_ACRE[crop][PRODUCT])
+def _entitlement(acres: float, crop: str, product: str, cap: float) -> int:
+    full = math.ceil(acres * rate(crop, product))
+    if full <= 0:
+        return 0
+    return max(1, math.floor(full * cap)) if cap < 1.0 else full
 
 
 def generate(seed: int, params: dict | None = None) -> dict:
     p = dict(DEFAULTS)
     p.update(params or {})
+    if not known_product(p["product"]):
+        raise ValueError(f"unknown product {p['product']!r}")
+    if p["supply_multiplier"] <= 0:
+        raise ValueError("supply_multiplier must be positive")
     rng = random.Random(seed)
     n_f, n_c, n_v = p["n_farmers"], p["n_centres"], p["n_villages"]
     area = p["area_km"]
@@ -79,7 +90,7 @@ def generate(seed: int, params: dict | None = None) -> dict:
             "id": i, "village": v["id"], "x": v["x"], "y": v["y"],
             "acres": acres, "crop": crop, "tenant": tenant,
             "sowing_day": sow, "request_day": req_day,
-            "qty_full": _entitlement(acres, crop),
+            "qty_full": _entitlement(acres, crop, p["product"], p["cap_scale"]),
         })
 
     # Supply sized to hit supply_ratio overall, uneven across centres
@@ -95,7 +106,7 @@ def generate(seed: int, params: dict | None = None) -> dict:
     arrivals: dict[int, list[tuple[int, int]]] = {}
     given = 0
     for i, c in enumerate(centres):
-        target = total_supply * weights[i] / s
+        target = total_supply * weights[i] / s * p["supply_multiplier"]
         n_lots = rng.randint(3, 6)
         days = sorted(rng.randint(1, p["season_days"]) for _ in range(n_lots))
         lots, acc = [], 0
@@ -106,6 +117,21 @@ def generate(seed: int, params: dict | None = None) -> dict:
         lots[-1][1] = max(0, int(round(target - acc)))
         arrivals[c["id"]] = sorted((d, q) for d, q in lots if q > 0)
         given += sum(q for _, q in arrivals[c["id"]])
+    # Closed centres (console): drop them, move their lots to the nearest
+    # OPEN centre — the officer's redistribution decision, made visible.
+    closed = set(p["closed_centres"] or [])
+    if closed:
+        open_c = [c for c in centres if c["id"] not in closed]
+        if not open_c:
+            raise ValueError("cannot close every centre")
+        for cid in sorted(closed):
+            lots = arrivals.pop(cid, [])
+            if not lots:
+                continue
+            shut = next(c for c in centres if c["id"] == cid)
+            near = min(open_c, key=lambda c: (c["x"] - shut["x"]) ** 2 + (c["y"] - shut["y"]) ** 2)
+            arrivals[near["id"]] = sorted(arrivals.get(near["id"], []) + lots)
+        centres = open_c
     return {"seed": seed, "params": p, "centres": centres, "villages": villages,
             "farmers": farmers, "arrivals": arrivals,
             "total_demand": total_demand, "total_supply": given}

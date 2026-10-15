@@ -20,6 +20,15 @@ export function Simulator() {
   const [sensValues, setSensValues] = useState('0.7,0.8,0.9,1.0,1.1')
   const [sens, setSens] = useState<Array<Record<string, unknown>>>([])
   const [msg, setMsg] = useState('')
+  // Constraint Console (v3): judge changes a rule, we re-run and compare.
+  const [supplyCut, setSupplyCut] = useState(false)
+  const [otp, setOtp] = useState('0.15')
+  const [noshow, setNoshow] = useState('0.10')
+  const [cap, setCap] = useState('1.0')
+  const [detourC, setDetourC] = useState('15')
+  const [closed, setClosed] = useState('')
+  const [product, setProduct] = useState('UREA')
+  const [cmp, setCmp] = useState<{ before: Agg; after: Agg; secs: number } | null>(null)
 
   useEffect(() => { api.get('/sim/presets').then((r) => setPresets(Object.keys((r as { presets: object }).presets))).catch(() => undefined) }, [])
 
@@ -54,6 +63,16 @@ export function Simulator() {
           setFindings(s.result.findings)
           setMsg('')
         } else if (s.status === 'failed') { clearInterval(iv); setMsg('run failed') }
+      }).catch((e) => { clearInterval(iv); setMsg(String(e)) })
+    }, 1000)
+  }
+
+  const pollCompare = (id: string, done: (agg: Agg) => void) => {
+    const iv = setInterval(() => {
+      api.get(`/sim/${id}`).then((r) => {
+        const s = r as { status: string; result?: { agg: Agg } }
+        if (s.status === 'done' && s.result) { clearInterval(iv); done(s.result.agg) }
+        else if (s.status === 'failed') { clearInterval(iv); setMsg('comparison run failed') }
       }).catch((e) => { clearInterval(iv); setMsg(String(e)) })
     }, 1000)
   }
@@ -103,6 +122,56 @@ export function Simulator() {
           <ul className="list-disc ml-5 text-sm">{findings.map((f, i) => <li key={i}>{f}</li>)}</ul>
         </div>
       )}
+      <div className="card">
+        <h2 className="font-bold">Constraint Console<MockBadge /></h2>
+        <p className="text-xs text-stone-500">Change a rule → re-run → before/after for both policies. Small district so judges see it in seconds.</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
+          <label className="text-sm flex items-center gap-2"><input type="checkbox" checked={supplyCut} onChange={(e) => setSupplyCut(e.target.checked)} /> supply −30%</label>
+          <label className="text-sm">OTP fail<input className="inp" value={otp} onChange={(e) => setOtp(e.target.value)} /></label>
+          <label className="text-sm">No-show<input className="inp" value={noshow} onChange={(e) => setNoshow(e.target.value)} /></label>
+          <label className="text-sm">Cap scale<input className="inp" value={cap} onChange={(e) => setCap(e.target.value)} /></label>
+          <label className="text-sm">Max detour km<input className="inp" value={detourC} onChange={(e) => setDetourC(e.target.value)} /></label>
+          <label className="text-sm">Closed centres (ids, comma)<input className="inp" value={closed} onChange={(e) => setClosed(e.target.value)} /></label>
+          <label className="text-sm">Product
+            <select className="inp" value={product} onChange={(e) => setProduct(e.target.value)}>
+              {['UREA', 'DAP', 'MOP', 'NPK', 'ZINC'].map((p) => <option key={p}>{p}</option>)}
+            </select></label>
+        </div>
+        <button className="btn mt-2 w-full" onClick={() => {
+          const t0 = Date.now()
+          const base = { n_farmers: 800, n_centres: 8, n_villages: 40 }
+          const mod = {
+            ...base, product,
+            supply_multiplier: supplyCut ? 0.7 : 1.0,
+            otp_fail_rate: Number(otp), no_show_rate: Number(noshow), cap_scale: Number(cap),
+            MAX_DETOUR_KM_OVER_NEAREST: Number(detourC),
+            closed_centres: closed.split(',').map((s) => Number(s.trim())).filter((n) => !isNaN(n)),
+          }
+          setMsg('comparing… (two runs)')
+          let a: Agg | null = null
+          const finish = (b: Agg) => {
+            if (a) { setCmp({ before: a, after: b, secs: (Date.now() - t0) / 1000 }); setMsg('') }
+            else a = b
+          }
+          api.post('/sim/run', { params: base, seeds: [1, 2] }).then((r) => pollCompare((r as { run_id: string }).run_id, finish)).catch((e) => setMsg(String(e)))
+          api.post('/sim/run', { params: mod, seeds: [1, 2] }).then((r) => pollCompare((r as { run_id: string }).run_id, finish)).catch((e) => setMsg(String(e)))
+        }}>Run comparison</button>
+        {cmp && (
+          <div className="mt-2 text-sm">
+            <p className="text-xs text-stone-500">both runs done in {cmp.secs.toFixed(1)}s</p>
+            <table className="w-full text-xs mt-1">
+              <thead><tr><th className="text-left">metric</th><th>base before→after</th><th>khadsetu before→after</th></tr></thead>
+              <tbody>
+                {['served_in_window_pct', 'served_pct', 'wasted_trips_per_farmer', 'avg_travel_km_per_served'].map((k) => (
+                  <tr key={k} className="border-t"><td>{k}</td>
+                    <td>{cmp.before[k].base_mean.toFixed(1)} → {cmp.after[k].base_mean.toFixed(1)}</td>
+                    <td>{cmp.before[k].kh_mean.toFixed(1)} → {cmp.after[k].kh_mean.toFixed(1)}</td></tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
       <div className="card">
         <h2 className="font-bold">Sensitivity</h2>
         <div className="grid grid-cols-2 gap-2 mt-2">
