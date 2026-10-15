@@ -32,3 +32,9 @@ Logged per SPEC §14: where the spec is silent, simplest option consistent with 
 23. **Fail flag frozen at send:** `verify_otp` honours the `fail` bit stored by `send_otp`, so a session is consistent (no re-roll per attempt).
 24. **Verifier daily limit counts APPROVALS only** (rejections never consume quota), per §3.2 wording; enforced inside the same `BEGIN IMMEDIATE` txn as the decision.
 25. **Rejection cleanup:** all ISSUED tokens → CANCELLED with per-bag RELEASE ledger + pool decrement; WAITING entries → EXPIRED; farmer → REJECTED. Approval only flips PROVISIONAL → VERIFIED (future requests at 100%; existing provisional tokens stand).
+
+## Phase 4 — Operator + lifecycle
+26. **Receive consumes expectations:** pending lots (arrival ≤ given date) are marked received; only the operator-declared `qty` enters `on_hand`. A short rake (180 vs expected 200) honestly lowers projection by 20.
+27. **Audit cancel condition** is `reserved > counted - buffer` (physical cannot cover holds), not the literal §5.5 'shortfall exceeds reserved' (which would miss counted < reserved cases). Newest-issued cancelled first, each with RELEASE ledger; farmers re-run through `request_token` under `{old}:audit:{code}` with notification text.
+28. **Redeem window** is `[pickup, pickup+grace]` inclusive; success does `on_hand -= qty; reserved -= qty` + REDEEM ledger + Request COMPLETED and returns farmer name+village for the operator's visual ID check (no hard biometric in MVP).
+29. **Reschedule** releases the old hold then reserves afresh (new key `{old}:resched:{n}`, `reschedules_used` carried over); beyond FREE_RESCHEDULES the API must say cancel + new request. No partial fulfilment.

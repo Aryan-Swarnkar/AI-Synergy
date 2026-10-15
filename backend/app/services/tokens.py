@@ -372,3 +372,94 @@ def expire_and_promote(db, today: str, cfg: dict | None = None) -> dict:
                 db.commit()
         # else: still no stock — stays WAITING
     return {"expired": expired, "promoted": promoted}
+
+
+def redeem_token(db, code: str, operator_id: str, today: str,
+                 cfg: dict | None = None) -> dict:
+    """Operator scans/types code. Checks status + date window
+    [pickup_date, pickup_date+grace]; returns farmer identity for the
+    operator to match (name + village). No partial fulfilment (MVP)."""
+    cfg = cfg or default_config.get_config()
+    with immediate_txn(db) as s:
+        t = s.query(Token).filter(Token.code == code).first()
+        if t is None:
+            return {"ok": False, "error": "NOT_FOUND"}
+        if t.status != "ISSUED":
+            return {"ok": False, "error": f"ALREADY_{t.status}"}
+        if not (t.pickup_date <= today <= _add_days(t.pickup_date, cfg.get("TOKEN_GRACE_DAYS", 1))):
+            return {"ok": False, "error": "OUT_OF_WINDOW",
+                    "pickup_date": t.pickup_date, "expires_at": t.expires_at}
+        t.status = "REDEEMED"
+        t.redeemed_at = _utcnow()
+        t.redeemed_by = operator_id
+        pool = s.get(StockPool, (t.centre_id, t.product))
+        if pool:
+            pool.on_hand = max(0, pool.on_hand - t.qty_bags)
+            pool.reserved = max(0, pool.reserved - t.qty_bags)
+        s.add(StockLedger(centre_id=t.centre_id, product=t.product, delta=-t.qty_bags,
+                          reason="REDEEM", ref_id=code, ts=_utcnow()))
+        req = s.get(Request, t.request_id)
+        if req:
+            req.status = "COMPLETED"
+        farmer = s.get(Farmer, t.farmer_id)
+        village = s.get(Village, farmer.village_id) if farmer else None
+        s.add(AuditEvent(actor_role="OPERATOR", actor_id=operator_id, action="REDEEM",
+                         entity="token", entity_id=code, detail={"qty": t.qty_bags}))
+        ident = {"farmer_name": farmer.name if farmer else "?",
+                 "village": village.name if village else "?",
+                 "qty": t.qty_bags, "product": t.product}
+    return {"ok": True, **ident}
+
+
+def cancel_token(db, code: str, actor: str = "farmer") -> dict:
+    """Cancel an ISSUED token, releasing its reservation."""
+    with immediate_txn(db) as s:
+        t = s.query(Token).filter(Token.code == code).first()
+        if t is None:
+            return {"ok": False, "error": "NOT_FOUND"}
+        if t.status != "ISSUED":
+            return {"ok": False, "error": f"ALREADY_{t.status}"}
+        t.status = "CANCELLED"
+        pool = s.get(StockPool, (t.centre_id, t.product))
+        if pool:
+            pool.reserved = max(0, pool.reserved - t.qty_bags)
+        s.add(StockLedger(centre_id=t.centre_id, product=t.product, delta=t.qty_bags,
+                          reason="RELEASE", ref_id=f"cancel-{code}", ts=_utcnow()))
+        req = s.get(Request, t.request_id)
+        if req:
+            req.status = "CANCELLED"
+    return {"ok": True}
+
+
+def reschedule_token(db, code: str, today: str, cfg: dict | None = None) -> dict:
+    """Free reschedules up to FREE_RESCHEDULES; beyond that caller must
+    cancel + file a new request. Re-runs the allocator, keeps seniority
+    (same deadline)."""
+    cfg = cfg or default_config.get_config()
+    free: int = cfg.get("FREE_RESCHEDULES", 1)
+    old = db.query(Token).filter(Token.code == code).first()
+    if old is None:
+        return {"ok": False, "error": "NOT_FOUND"}
+    if old.status != "ISSUED":
+        return {"ok": False, "error": f"ALREADY_{old.status}"}
+    if old.reschedules_used >= free:
+        return {"ok": False, "error": "NO_FREE_RESCHEDULES",
+                "message": "Free reschedules used; cancel and file a new request."}
+    old_req = db.get(Request, old.request_id)
+    farmer = db.get(Farmer, old.farmer_id)
+    if old_req is None or farmer is None:
+        return {"ok": False, "error": "NOT_FOUND"}
+    n = old.reschedules_used + 1
+    # Release the old hold, then reserve afresh (new key keeps idempotency clean).
+    cancel_token(db, code, actor="farmer")
+    res = request_token(db, farmer_id=farmer.id, product=old.product, crop=old_req.crop,
+                        acres=old_req.acres, qty=old.qty_bags,
+                        sowing_date=old_req.sowing_date,
+                        idempotency_key=f"{old_req.idempotency_key}:resched:{n}",
+                        today=today, cfg=cfg)
+    if res.get("outcome") == "ISSUED":
+        with immediate_txn(db) as s:
+            nt = s.query(Token).filter(Token.code == res["token_code"]).first()
+            if nt:
+                nt.reschedules_used = n
+    return {"ok": res.get("outcome") == "ISSUED", **res}
