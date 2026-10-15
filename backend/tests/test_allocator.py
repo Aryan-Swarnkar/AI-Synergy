@@ -93,6 +93,23 @@ def test_rejects_sowing_outside_window():
     assert d.reason_code == "INVALID_SOWING_WINDOW"
 
 
+def test_extended_radius_when_nearby_dry():
+    from app.core.allocator import decide
+    from app.core.types import CentreState
+    cfg = _cfg()
+    # Near centre (5 km) bone-dry, far centre (50 km) stocked: must widen, not strand.
+    centres = [
+        CentreState(id=1, name="Near", lat=0.0, lon=0.045, on_hand=0, reserved=0,
+                    arrivals=[], day_used={}),
+        CentreState(id=2, name="Far", lat=0.0, lon=0.45, on_hand=100, reserved=0,
+                    arrivals=[], day_used={}),
+    ]
+    d = decide(_req(village_lat=0.0, village_lon=0.0), centres, "2026-06-16", cfg)
+    assert d.outcome == "ISSUED"
+    assert d.centre_id == 2
+    assert d.extended_radius is True
+
+
 def test_waitlist_has_eta_and_risk_flag():
     from app.core.allocator import decide
     from app.core.types import CentreState

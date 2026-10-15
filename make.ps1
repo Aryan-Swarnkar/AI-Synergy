@@ -6,7 +6,7 @@ switch ($Target) {
   "install" { uv pip install -r "$Backend\requirements.txt" --system }
   "test" { Push-Location $Backend; uv run pytest tests -x -q; Pop-Location }
   "seed" { Push-Location $Backend; uv run python -m app.seed; Pop-Location }
-  "sim" { Push-Location $Backend; uv run python -c "print('simulator lands in Phase 6')"; Pop-Location }
+  "sim" { uv run --directory $Backend python -m app.sim_cli }
   "build" { Push-Location (Join-Path $PSScriptRoot "frontend"); npm run build; Pop-Location }
   default {
     Write-Host "backend :8000 (frontend lands in Phase 7)"

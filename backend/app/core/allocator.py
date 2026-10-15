@@ -196,17 +196,28 @@ def decide(req: FarmerRequest, centres: list[CentreState], today: str, cfg: dict
         extended = True
 
     # ---- 4. Earliest feasible date per centre ----
-    cands: list[dict] = []
-    for c in in_radius:
-        for d in window:
-            if _projected(c, d, cfg) < req.qty:
-                continue
-            slot, util = _slot_for(c, d, cfg)
-            if slot is None:
-                continue
-            cands.append({"centre": c, "dist_km": dists[c.id], "date": d,
-                          "slot": slot, "util": util})
-            break  # earliest feasible per centre only
+    def _candidates(pool: list[CentreState]) -> list[dict]:
+        out: list[dict] = []
+        for c in pool:
+            for d in window:
+                if _projected(c, d, cfg) < req.qty:
+                    continue
+                slot, util = _slot_for(c, d, cfg)
+                if slot is None:
+                    continue
+                out.append({"centre": c, "dist_km": dists[c.id], "date": d,
+                            "slot": slot, "util": util})
+                break  # earliest feasible per centre only
+        return out
+
+    cands = _candidates(in_radius)
+    if not cands and not extended:
+        # Centres nearby but all dry: widen the search before giving up,
+        # so a farmer is never stranded next to empty shelves while a rake
+        # sits just beyond the radius (SPEC §5.3.8 intent).
+        in_radius = in_radius_set(max_radius * 1.5)
+        extended = True
+        cands = _candidates(in_radius)
 
     # ---- 5. Detour filter ----
     max_detour: float = cfg.get("MAX_DETOUR_KM_OVER_NEAREST", 15)

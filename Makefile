@@ -21,7 +21,7 @@ seed:
 	uv run --directory $(BACKEND_DIR) python -m app.seed
 
 sim:
-	uv run --directory $(BACKEND_DIR) python -c "print('simulator lands in Phase 6; try: make seed')"
+	uv run --directory $(BACKEND_DIR) python -m app.sim_cli
 
 build:
 	cd $(FRONTEND_DIR) && npm run build || echo "(frontend not yet scaffolded)"

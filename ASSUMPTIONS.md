@@ -52,3 +52,8 @@ Logged per SPEC §14: where the spec is silent, simplest option consistent with 
 37. **Counter-short retry re-decides** (waitlist instead of a pointless second trip), mirroring the live API; the baseline keeps dumb retries as the contrast. No-show → unserved on both sides.
 38. **Unserved split is an estimate:** `shortage = min(never, round(N × max(0, 1 - ratio)))`, rest = process. Honest-findings flags any metric where KhadSetu is not better by margin, always adds the scarcity sentence at ratio ≤ 0.8 plus the cannot-create-fertiliser note.
 39. **`/sim/run` is a background task** with progress (default 5 seeds can exceed 20 s at full size; one seed ≈ 4 s). Sensitivity runs synchronously; tests/API smoke use tiny districts.
+
+## Phase 8 — Polish + live verification
+40. **Extended radius triggers on dry-nearby, not just empty geography.** First version only widened ×1.5 when zero centres were in radius, stranding farmers next to dry shelves while a rake sat just beyond it (found via live demo forensics). Now: no candidate in radius → widen and set `extended_radius`. Detour fallback still applies.
+41. **`make sim`** runs 1500 farmers × 3 seeds and prints mean±std headlines. `backend/verify_demo.py` replays all 8 demo steps against a live server (used for final verification, then seed restored).
+42. **`:8000` was occupied** on this machine (foreign PID serving 404s); live verification ran the backend on `:8001` + frontend on `:5173`, both 200 OK. `make dev` targets :8000/:5173 — free the port before running it.
