@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply bg-stone-50 text-stone-900; }
+.card { @apply bg-white rounded-xl shadow p-4; }
+.btn { @apply px-4 py-3 rounded-lg font-semibold text-white bg-green-700 active:bg-green-800 disabled:opacity-50 min-h-[48px]; }
+.btn2 { @apply px-4 py-2 rounded-lg font-semibold bg-stone-200 text-stone-900 min-h-[44px]; }
+.inp { @apply w-full border rounded-lg px-3 py-3 text-base min-h-[48px]; }
+.lbl { @apply block text-sm font-semibold mb-1; }
