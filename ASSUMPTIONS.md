@@ -24,3 +24,11 @@ Logged per SPEC §14: where the spec is silent, simplest option consistent with 
 17. **Slot-full race:** reserve increment undone via compensating `UPDATE reserved - qty` in the same txn, then a WAITLIST request is persisted instead.
 18. **Promotion (minimal):** `expire_and_promote()` expires `pickup+grace < today` (RELEASE ledger), then promotes WAITING entries sorted by `(deadline, acres, created_at)`; old waitlist request is CANCELLED and a fresh token issued under `{old_key}:promote:{entry}`. Full `/admin/tick` endpoint lands in Phase 4.
 19. **Purity enforced by test:** `allocator.py` must contain no `import/from sqlalchemy|fastapi` (docstring mentions allowed; import statements fail the test).
+20. **Concurrent same-farmer/different-key race:** dup-active check is read-then-write (TOCTOU); two concurrent keys for one farmer could both issue. Out of the 14-test scope; API layer (Phase 5) keeps sequential behaviour. A partial unique index is a future hardening.
+21. **`uv --directory backend` is canonical** from repo root (`--project backend` does not chdir, so `python -m app.*` fails with it). `Makefile`/`make.ps1` use `--directory`.
+
+## Phase 3 — Identity and inclusion
+22. **Mock OTP store is in-memory** (`identity._OTP`, codes 123456 / voice 654321). Real SMS gateway replaces `send/verify_otp`; every UI surface carries a MOCK badge (Phase 7).
+23. **Fail flag frozen at send:** `verify_otp` honours the `fail` bit stored by `send_otp`, so a session is consistent (no re-roll per attempt).
+24. **Verifier daily limit counts APPROVALS only** (rejections never consume quota), per §3.2 wording; enforced inside the same `BEGIN IMMEDIATE` txn as the decision.
+25. **Rejection cleanup:** all ISSUED tokens → CANCELLED with per-bag RELEASE ledger + pool decrement; WAITING entries → EXPIRED; farmer → REJECTED. Approval only flips PROVISIONAL → VERIFIED (future requests at 100%; existing provisional tokens stand).
