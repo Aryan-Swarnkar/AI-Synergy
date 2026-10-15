@@ -20,7 +20,7 @@ from ..core.allocator import decide
 from ..core.norms import entitlement
 from ..core.types import CentreState, FarmerRequest
 from ..db import immediate_txn
-from ..models import AuditEvent, Farmer, Request, StockLedger, StockLot, StockPool, Token, Village, WaitlistEntry
+from ..models import AuditEvent, Centre, Farmer, Request, StockLedger, StockLot, StockPool, Token, Village, WaitlistEntry
 
 _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0O1I
 
@@ -46,12 +46,6 @@ def _buffer(on_hand: int, pct: float) -> int:
     return math.ceil(max(0, on_hand) * pct / 100.0)
 
 
-def _day_used(db, centre_id: int, pickup_date: str) -> int:
-    return db.query(func.count(Token.id)).filter(
-        Token.centre_id == centre_id, Token.pickup_date == pickup_date,
-        Token.status == "ISSUED").scalar() or 0
-
-
 def _pending_arrivals(db, centre_id: int, product: str) -> list[tuple[str, int]]:
     """Only lots NOT yet received count as future arrivals (received ones are
     already inside StockPool.on_hand; counting them again would double-count)."""
@@ -62,7 +56,6 @@ def _pending_arrivals(db, centre_id: int, product: str) -> list[tuple[str, int]]
 
 
 def _build_states(db, product: str) -> list[CentreState]:
-    from ..models import Centre
     centres = db.query(Centre).filter(Centre.active.is_(True)).all()
     states: list[CentreState] = []
     for c in centres:

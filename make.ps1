@@ -10,6 +10,6 @@ switch ($Target) {
   "build" { Push-Location (Join-Path $PSScriptRoot "frontend"); npm run build; Pop-Location }
   default {
     Write-Host "backend :8000 (frontend lands in Phase 7)"
-    uv run --project $Backend uvicorn app.main:app --app-dir "$Backend" --host 0.0.0.0 --port 8000 --reload
+    uv run --directory $Backend uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
   }
 }

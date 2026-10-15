@@ -116,8 +116,7 @@ def _window(today: str, sowing: str) -> tuple[list[str], bool]:
     return out, False
 
 
-def _eta_in_radius(centres: list[CentreState], dists: dict[int, float],
-                   in_radius: list[CentreState], window: list[str],
+def _eta_in_radius(in_radius: list[CentreState], window: list[str],
                    sowing: str, qty: int, cfg: dict) -> str | None:
     # 1) inside window 2) up to 30 days past sowing (to report at-risk ETA)
     for d in window:
@@ -245,7 +244,7 @@ def decide(req: FarmerRequest, centres: list[CentreState], today: str, cfg: dict
         return Decision(outcome="REJECTED", qty=req.qty, urgent=urgent,
                         extended_radius=extended, reason_code="NO_STOCK_WAITLIST",
                         reason_text_en=en, reason_text_hi=hi)
-    eta = _eta_in_radius(centres, dists, in_radius, window, req.sowing_date, req.qty, cfg)
+    eta = _eta_in_radius(in_radius, window, req.sowing_date, req.qty, cfg)
     at_risk = eta is None or not (eta < req.sowing_date)
     code = "AT_RISK" if at_risk else "NO_STOCK_WAITLIST"
     en, hi = _reason(code, eta=eta or "—")
